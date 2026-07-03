@@ -1,0 +1,13 @@
+{
+  "name": "stopmissionjs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node web/server.js"
+  },
+  "dependencies": {
+    "@jspsych/plugin-html-keyboard-response": "^2.1.0",
+    "@jspsych/plugin-instructions": "^2.1.0",
+    "jspsych": "^8.2.3"
+  }
+}

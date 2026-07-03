@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stop Mission JS</title>
+    <link rel="stylesheet" href="/node_modules/jspsych/css/jspsych.css">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <div id="jspsych-target"></div>
+    </div>
+
+    <script defer src="/node_modules/jspsych/dist/index.browser.js"></script>
+    <script defer src="/node_modules/@jspsych/plugin-html-keyboard-response/dist/index.browser.js"></script>
+    <script defer src="/node_modules/@jspsych/plugin-instructions/dist/index.browser.js"></script>
+    <script defer src="/shared/stop-task-definitions.js"></script>
+    <script defer src="/js/load-design.js"></script>
+    <script defer src="/js/persistence.js"></script>
+    <script defer src="/js/plugins/jspsych-stop-signal-response.js"></script>
+    <script defer src="/js/experiment.js"></script>
+  </body>
+</html>
