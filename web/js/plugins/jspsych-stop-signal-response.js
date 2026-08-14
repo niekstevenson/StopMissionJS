@@ -1,4 +1,6 @@
 (function attachStopSignalResponsePlugin(global) {
+  const stimulusView = global.stopMissionStimulusView;
+
   class StopSignalResponsePlugin {
     constructor(jsPsych) {
       this.jsPsych = jsPsych;
@@ -27,33 +29,33 @@
           type: jsPsychModule.ParameterType.STRING,
           default: "go"
         },
-        stop_rule: {
-          type: jsPsychModule.ParameterType.STRING,
-          default: "none"
-        },
         signal: {
           type: jsPsychModule.ParameterType.STRING,
           default: "none"
         },
-        direction: {
+        orientation: {
           type: jsPsychModule.ParameterType.STRING,
-          default: "left"
+          default: "normal"
+        },
+        fill: {
+          type: jsPsychModule.ParameterType.STRING,
+          default: "unfilled"
         },
         response_keys: {
           type: jsPsychModule.ParameterType.KEYS,
-          default: ["z", "m"]
+          default: ["left_shift", "left_inner"]
         },
-        key_labels: {
+        key_map: {
+          type: jsPsychModule.ParameterType.OBJECT,
+          default: {}
+        },
+        key_assignments: {
           type: jsPsychModule.ParameterType.OBJECT,
           default: {}
         },
         keyboard_order: {
           type: jsPsychModule.ParameterType.OBJECT,
-          default: ["z", "x", "c", "v", "b", "n", "m"]
-        },
-        go_key: {
-          type: jsPsychModule.ParameterType.STRING,
-          default: ""
+          default: ["left_shift", "left_inner", "right_inner", "right_shift"]
         },
         intended_action: {
           type: jsPsychModule.ParameterType.STRING,
@@ -79,11 +81,25 @@
     };
 
     trial(displayElement, trial) {
-      const validKeys = trial.response_keys.map((key) => key.toLowerCase());
+      const keyMap = trial.key_map || {};
+      const responseSlots = trial.response_keys.map((key) => String(key));
+      const responseCodes = new Map(
+        responseSlots
+          .map((slot) => [slot, keyMap[slot]?.code])
+          .filter(([, code]) => code)
+      );
+
+      if (responseCodes.size !== responseSlots.length) {
+        console.error("Missing response key mapping.", {
+          response_keys: trial.response_keys,
+          key_map: keyMap
+        });
+        this.jsPsych.abortExperiment("<p>Response key setup is incomplete. Reload the page and set the response keys again.</p>");
+        return;
+      }
+
       let startTime = null;
       let signalOnsetTime = null;
-      let trialEndTime = null;
-      let responseTimestamp = null;
       let responseEnabled = false;
       let signalPresented = false;
       let animationFrameId = null;
@@ -91,12 +107,18 @@
 
       displayElement.innerHTML = `
         <div class="stop-stage timing-hidden">
-          <div class="stop-stimulus">
-            <div class="stop-circle" data-stop-circle>
-              ${this.renderArrow(trial.direction)}
-            </div>
-          </div>
-          ${this.renderKeyboard(trial)}
+          ${stimulusView.renderStimulus({
+            orientation: trial.orientation,
+            fill: trial.fill,
+            className: "stop-stimulus",
+            circleAttributes: "data-stop-circle"
+          })}
+          ${stimulusView.renderKeyboard({
+            keyboardOrder: trial.keyboard_order,
+            responseKeys: trial.response_keys,
+            keyMapping: keyMap,
+            keyAssignments: trial.key_assignments
+          })}
         </div>
       `;
 
@@ -114,7 +136,7 @@
         console.error(error);
         this.jsPsych.abortExperiment(`
           <p>Timing error.</p>
-          <p>The browser did not provide a usable keyboard event timestamp. This run was stopped instead of saving fallback reaction times.</p>
+          <p>The browser did not provide a usable keyboard event timestamp. This trial was not saved.</p>
         `);
       };
 
@@ -123,7 +145,7 @@
           return responseKey === null;
         }
 
-        if (responseKey !== String(trial.intended_key).toLowerCase()) {
+        if (responseKey !== String(trial.intended_key)) {
           return false;
         }
 
@@ -131,43 +153,29 @@
           (signalOnsetTime !== null && responseTime !== null && responseTime >= signalOnsetTime);
       };
 
-      const finish = (responseKey, rt, responseTime, finishTime) => {
+      const finish = (responseKey, rt, responseTime) => {
         if (finished) {
           return;
         }
 
-        const normalizedResponse = responseKey === null ? null : responseKey.toLowerCase();
-        const correct = isCorrect(normalizedResponse, responseTime);
-        responseTimestamp = responseTime;
-        trialEndTime = finishTime;
+        const correct = isCorrect(responseKey, responseTime);
 
         cleanup();
         this.jsPsych.finishTrial({
-          record_type: trial.phase === "main" ? "response_trial" : "practice_trial",
           task: trial.task_name,
           phase: trial.phase,
           block: trial.block,
           trial: trial.trial_index,
-          condition: trial.trial_type,
-          stop_rule: trial.stop_rule,
+          task_trial_type: trial.trial_type,
           signal: trial.signal,
-          direction: trial.direction,
-          go_key: trial.go_key,
-          intended_action: trial.intended_action,
-          intended_key: trial.intended_key || null,
-          requires_signal_for_success: trial.requires_signal_for_success,
-          response_key: normalizedResponse,
+          orientation: trial.orientation,
+          fill: trial.fill,
+          response_key: responseKey,
           rt,
           correct,
           stop_success: trial.trial_type === "stop" ? correct : null,
           ssd: trial.trial_type === "stop" ? trial.ssd : null,
-          actual_ssd: signalOnsetTime === null ? null : Math.round(signalOnsetTime - startTime),
-          response_window: trial.response_window,
-          stimulus_onset_time: Number(startTime.toFixed(3)),
-          signal_onset_time: signalOnsetTime === null ? null : Number(signalOnsetTime.toFixed(3)),
-          response_time: responseTimestamp === null ? null : Number(responseTimestamp.toFixed(3)),
-          trial_end_time: Number(trialEndTime.toFixed(3)),
-          trial_duration: Math.round(trialEndTime - startTime)
+          actual_ssd: signalOnsetTime === null ? null : Math.round(signalOnsetTime - startTime)
         });
       };
 
@@ -176,9 +184,9 @@
           return;
         }
 
-        const key = event.key.toLowerCase();
+        const responseSlot = responseSlots.find((slot) => responseCodes.get(slot) === event.code);
 
-        if (!validKeys.includes(key)) {
+        if (!responseSlot) {
           return;
         }
 
@@ -193,9 +201,8 @@
         }
 
         finish(
-          key,
+          responseSlot,
           Math.round(keyTiming - startTime),
-          keyTiming,
           keyTiming
         );
       };
@@ -211,12 +218,8 @@
           circle.classList.add(`signal-${trial.signal}`);
         }
 
-        const trialDuration = trial.trial_type === "stop"
-          ? trial.ssd + trial.response_window
-          : trial.response_window;
-
-        if (timestamp >= startTime + trialDuration) {
-          finish(null, null, null, timestamp);
+        if (timestamp >= startTime + trial.response_window) {
+          finish(null, null, null);
           return;
         }
 
@@ -243,43 +246,6 @@
       return timestamp;
     }
 
-    renderArrow(direction) {
-      return `
-        <svg
-          class="simple-arrow arrow-${direction}"
-          viewBox="0 0 90 64"
-          aria-label="${direction} arrow"
-          role="img"
-        >
-          <line class="arrow-line" x1="16" y1="32" x2="74" y2="32"></line>
-          <line class="arrow-line" x1="74" y1="32" x2="50" y2="12"></line>
-          <line class="arrow-line" x1="74" y1="32" x2="50" y2="52"></line>
-        </svg>
-      `;
-    }
-
-    renderKeyboard(trial) {
-      const keyLabels = trial.key_labels || {};
-      const activeKeys = new Set(trial.response_keys.map((key) => key.toLowerCase()));
-      const keys = trial.keyboard_order.map((key) => {
-        const lowerKey = key.toLowerCase();
-
-        if (!activeKeys.has(lowerKey)) {
-          return `<div class="key-slot"></div>`;
-        }
-
-        return `
-          <div class="key-slot">
-            <div class="keycap">
-              <div class="keycap-key">${lowerKey.toUpperCase()}</div>
-              <div class="keycap-label">${keyLabels[lowerKey] || ""}</div>
-            </div>
-          </div>
-        `;
-      });
-
-      return `<div class="keyboard-row">${keys.join("")}</div>`;
-    }
   }
 
   global.jsPsychStopSignalResponse = StopSignalResponsePlugin;

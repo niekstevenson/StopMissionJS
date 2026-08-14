@@ -129,6 +129,20 @@
     });
   }
 
+  async function saveKeyMapping(sessionKey, keyMapping) {
+    const session = await getSession(sessionKey);
+
+    if (!session) {
+      throw new Error(`No IndexedDB session found for ${sessionKey}.`);
+    }
+
+    return putSession({
+      ...session,
+      keyMapping,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
   async function postRecord(record) {
     const response = await fetch("/api/data", {
       method: "POST",
@@ -144,13 +158,30 @@
     return response.json();
   }
 
+  async function postKeyMapping(record) {
+    const response = await fetch("/api/keymap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+      keepalive: true
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save key mapping to local server (${response.status}).`);
+    }
+
+    return response.json();
+  }
+
   global.stopMissionPersistence = {
     clearSession,
     getSession,
     initializeSession,
     markTrialServerSaved,
     markSessionComplete,
+    postKeyMapping,
     postRecord,
+    saveKeyMapping,
     saveTrial
   };
 })(window);

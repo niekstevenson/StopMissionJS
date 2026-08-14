@@ -7,6 +7,12 @@ body {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+:root {
+  --stop-circle-size: 225px;
+  --stop-circle-border: 12px;
+  --stop-square-size: 150px;
+}
+
 #app {
   min-height: 100%;
   display: flex;
@@ -23,36 +29,12 @@ body {
 }
 
 .stop-message {
-  max-width: 760px;
+  max-width: 880px;
   margin: 40px auto;
   padding: 24px;
   background: #ffffff;
   border: 1px solid #d7d7d2;
   line-height: 1.5;
-}
-
-.instruction-rules {
-  display: grid;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.instruction-rule {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.65fr) 1fr;
-  gap: 14px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid #d7d7d2;
-  background: #fafafa;
-}
-
-.instruction-rule-label {
-  font-weight: 700;
-}
-
-.instruction-rule-value {
-  text-align: left;
 }
 
 .button-row {
@@ -77,13 +59,157 @@ body {
   background: #efefeb;
 }
 
+.button-row button:disabled {
+  color: #777774;
+  border-color: #b8b8b3;
+  background: #efefeb;
+  cursor: default;
+}
+
+.keymap-message {
+  max-width: 840px;
+}
+
+.keymap-keys {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 24px 0 14px;
+}
+
+.keymap-key {
+  min-height: 116px;
+  border: 2px solid #b8b8b3;
+  background: #fafafa;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.keymap-key-active {
+  border-color: #111111;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+.keymap-key-captured {
+  border-color: #126b35;
+}
+
+.keymap-key-name {
+  font-weight: 700;
+}
+
+.keymap-key-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.keymap-prompt {
+  font-weight: 700;
+}
+
+.keymap-error {
+  min-height: 1.5em;
+  color: #9f1f2f;
+  font-weight: 700;
+}
+
+.trial-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.trial-preview-step {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d7d7d2;
+  background: #fafafa;
+}
+
+.trial-preview-fixation {
+  font-size: 64px;
+  line-height: 1;
+  color: #4f4f4f;
+}
+
+.stimulus-action-grid {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.stimulus-action-row {
+  display: grid;
+  grid-template-columns: minmax(116px, 150px) minmax(180px, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #d7d7d2;
+  background: #fafafa;
+}
+
+.stimulus-action-response {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.stimulus-action-note {
+  color: #4b4b49;
+}
+
+.instruction-stimulus {
+  display: flex;
+  justify-content: center;
+}
+
+.instruction-stimulus .stop-circle {
+  width: 132px;
+  height: 132px;
+  border-width: 7px;
+}
+
+.instruction-stimulus .square-stimulus {
+  width: 88px;
+  height: 88px;
+}
+
+.no-response-box {
+  min-height: 84px;
+  padding: 0 18px;
+  border: 2px solid #2f2f2d;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
 .practice-feedback {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 56px;
   font-weight: 700;
+}
+
+.practice-feedback-stage,
+.iti-stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 500px;
+}
+
+.practice-feedback-stage .practice-feedback {
+  height: 100vh;
 }
 
 .practice-feedback-correct {
@@ -134,9 +260,9 @@ body {
 }
 
 .stop-circle {
-  width: 225px;
-  height: 225px;
-  border: 12px solid #111111;
+  width: var(--stop-circle-size);
+  height: var(--stop-circle-size);
+  border: var(--stop-circle-border) solid #111111;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -153,96 +279,148 @@ body {
   border-color: #c7252f;
 }
 
-.simple-arrow {
+.square-stimulus {
   display: block;
-  width: 135px;
-  height: 96px;
+  width: var(--stop-square-size);
+  height: var(--stop-square-size);
+  overflow: visible;
 }
 
-.simple-arrow.arrow-left {
-  transform: scaleX(-1);
+.square-shape {
+  vector-effect: non-scaling-stroke;
 }
 
-.arrow-line {
-  stroke: #111111;
-  stroke-width: 12;
-  stroke-linecap: round;
-}
-
-.keyboard-row {
+.keyboard-row,
+.instruction-keyboard-row {
   position: absolute;
   left: 50%;
   bottom: 24px;
-  width: min(930px, calc(100vw - 32px));
+  width: min(980px, calc(100vw - 32px));
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(7, minmax(81px, 117px));
+  grid-template-columns: minmax(154px, 240px) minmax(84px, 112px) minmax(88px, 1fr) minmax(84px, 112px) minmax(154px, 240px);
   gap: 15px;
   justify-content: center;
   align-items: end;
-  min-height: 123px;
+  min-height: 134px;
   padding-bottom: 24px;
+}
+
+.instruction-keyboard-row {
+  position: static;
+  transform: none;
+  margin: 24px auto 6px;
+  padding-bottom: 0;
 }
 
 .key-slot {
   width: 100%;
-  height: 108px;
+  height: 118px;
+}
+
+.key-slot-spacer {
+  pointer-events: none;
 }
 
 .keycap {
-  height: 108px;
+  height: 118px;
   border: 2px solid #2f2f2d;
   background: #ffffff;
   display: grid;
-  grid-template-rows: 48px 1fr;
+  grid-template-rows: 1fr;
   align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.keycap-assignment {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  padding: 6px;
+}
+
+.keycap-key-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: #4b4b49;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keycap-stimulus {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.keycap-stimulus .square-stimulus {
+  width: 58px;
+  height: 58px;
+}
+
+.keycap-signal {
+  width: 54px;
+  height: 54px;
+  border: 2px solid #2f2f2d;
   box-sizing: border-box;
 }
 
-.keycap-key {
-  font-size: 33px;
-  font-weight: 700;
-  line-height: 1;
+.keycap-signal-blue {
+  background: #1769d1;
 }
 
-.keycap-label {
-  font-size: 18px;
-  line-height: 1.1;
-  padding: 0 6px 10px;
-  color: #343431;
+.keycap-compact {
+  width: min(220px, 100%);
 }
 
 @media (max-width: 620px) {
-  .stop-circle {
-    width: 186px;
-    height: 186px;
-    border-width: 10px;
+  :root {
+    --stop-circle-size: 186px;
+    --stop-circle-border: 10px;
+    --stop-square-size: 124px;
   }
 
-  .simple-arrow {
-    width: 114px;
-    height: 81px;
+  .stimulus-action-row {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 
-  .keyboard-row {
-    grid-template-columns: repeat(7, minmax(42px, 1fr));
+  .trial-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .keyboard-row,
+  .instruction-keyboard-row {
+    grid-template-columns: minmax(78px, 1.4fr) minmax(52px, 1fr) 14px minmax(52px, 1fr) minmax(78px, 1.4fr);
     gap: 6px;
   }
 
   .key-slot,
   .keycap {
-    height: 78px;
+    height: 86px;
   }
 
-  .keycap {
-    grid-template-rows: 36px 1fr;
+  .keycap-stimulus .square-stimulus {
+    width: 36px;
+    height: 36px;
   }
 
-  .keycap-key {
-    font-size: 24px;
+  .keycap-signal {
+    width: 34px;
+    height: 34px;
   }
 
-  .keycap-label {
-    font-size: 11px;
+  .keymap-keys {
+    grid-template-columns: 1fr;
+  }
+
+  .keymap-key-value {
+    font-size: 22px;
   }
 }

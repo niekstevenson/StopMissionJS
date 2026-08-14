@@ -25,11 +25,30 @@ const DATA_COLUMNS = [
   "trial",
   "block",
   "stimulus_type",
-  "stimulus_direction",
+  "stimulus_orientation",
+  "stimulus_fill",
   "ssd_ms",
   "ssd_actual_ms",
   "rt_ms",
   "response"
+];
+
+const KEYMAP_COLUMNS = [
+  "task",
+  "subject",
+  "session_id",
+  "left_shift_code",
+  "left_shift_key",
+  "left_shift_label",
+  "left_inner_code",
+  "left_inner_key",
+  "left_inner_label",
+  "right_inner_code",
+  "right_inner_key",
+  "right_inner_label",
+  "right_shift_code",
+  "right_shift_key",
+  "right_shift_label"
 ];
 
 function safeJoin(root, relativePath) {
@@ -98,12 +117,17 @@ function csvEscape(value) {
   return text;
 }
 
-function appendCsvRecord(filePath, record) {
+function appendCsvRecord(filePath, record, columns = DATA_COLUMNS) {
   const exists = fs.existsSync(filePath);
-  const row = DATA_COLUMNS.map((column) => csvEscape(record[column])).join(",");
-  const lines = exists ? `${row}\n` : `${DATA_COLUMNS.join(",")}\n${row}\n`;
+  const row = columns.map((column) => csvEscape(record[column])).join(",");
+  const lines = exists ? `${row}\n` : `${columns.join(",")}\n${row}\n`;
 
   fs.appendFileSync(filePath, lines, "utf8");
+}
+
+function writeCsvRecord(filePath, record, columns) {
+  const row = columns.map((column) => csvEscape(record[column])).join(",");
+  fs.writeFileSync(filePath, `${columns.join(",")}\n${row}\n`, "utf8");
 }
 
 function handleDataPost(request, response) {
@@ -135,6 +159,31 @@ function handleDataPost(request, response) {
   });
 }
 
+function handleKeymapPost(request, response) {
+  let body = "";
+
+  request.on("data", (chunk) => {
+    body += chunk;
+  });
+
+  request.on("end", () => {
+    try {
+      const payload = JSON.parse(body);
+      const task = sanitizeToken(payload.task, "unknown");
+      const subject = sanitizeToken(payload.subject, "unknown");
+      const sessionId = sanitizeToken(payload.session_id, "no-session");
+      const subjectDirectory = `subject_${String(subject).padStart(3, "0")}`;
+      const filePath = path.join(DATA_ROOT, task, subjectDirectory, `keymap_${sessionId}.csv`);
+
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      writeCsvRecord(filePath, payload, KEYMAP_COLUMNS);
+      sendJson(response, 200, { ok: true });
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+    }
+  });
+}
+
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
@@ -145,6 +194,11 @@ const server = http.createServer((request, response) => {
 
   if (request.method === "POST" && url.pathname === "/api/data") {
     handleDataPost(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/keymap") {
+    handleKeymapPost(request, response);
     return;
   }
 

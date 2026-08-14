@@ -10,6 +10,9 @@ fixation_duration <- 500L
 response_window <- 1500L
 iti <- 500L
 
+stimulus_orientations <- c("normal", "rotated")
+stimulus_fills <- c("filled", "unfilled")
+
 get_script_dir <- function() {
   args <- commandArgs(trailingOnly = FALSE)
   script_arg <- args[startsWith(args, "--file=")]
@@ -29,66 +32,10 @@ get_script_dir <- function() {
   getwd()
 }
 
-output_root <- file.path(get_script_dir(), "designs")
-
-tasks <- list(
-  stop_change_two = list(
-    go_keys = c(left = "z", right = "m"),
-    stop_rules = data.frame(
-      stop_rule = "opposite",
-      signal = "blue",
-      outcome = "opposite_go_key",
-      key = "",
-      change_left = "",
-      change_right = "",
-      weight = 1,
-      requires_signal = TRUE,
-      stringsAsFactors = FALSE
-    )
-  ),
-  stop_change_three = list(
-    go_keys = c(left = "z", right = "c"),
-    stop_rules = data.frame(
-      stop_rule = "change",
-      signal = "blue",
-      outcome = "fixed_key",
-      key = "m",
-      change_left = "",
-      change_right = "",
-      weight = 1,
-      requires_signal = TRUE,
-      stringsAsFactors = FALSE
-    )
-  ),
-  stop_change_four = list(
-    go_keys = c(left = "z", right = "c"),
-    stop_rules = data.frame(
-      stop_rule = "direction_change",
-      signal = "blue",
-      outcome = "direction_change_key",
-      key = "",
-      change_left = "b",
-      change_right = "m",
-      weight = 1,
-      requires_signal = TRUE,
-      stringsAsFactors = FALSE
-    )
-  ),
-  stimulus_selective = list(
-    go_keys = c(left = "z", right = "m"),
-    stop_rules = data.frame(
-      stop_rule = c("withhold", "ignore"),
-      signal = c("red", "blue"),
-      outcome = c("withhold", "go_key"),
-      key = c("", ""),
-      change_left = c("", ""),
-      change_right = c("", ""),
-      weight = c(1, 1),
-      requires_signal = c(FALSE, FALSE),
-      stringsAsFactors = FALSE
-    )
-  )
-)
+script_dir <- get_script_dir()
+output_root <- file.path(script_dir, "designs")
+source(file.path(script_dir, "task_definitions.R"))
+tasks <- load_task_definitions(script_dir)
 
 allocate_counts <- function(total, weights, rotation = 0L) {
   exact <- total * weights / sum(weights)
@@ -104,20 +51,67 @@ allocate_counts <- function(total, weights, rotation = 0L) {
   as.integer(counts)
 }
 
-make_direction_rows <- function(count, rotation = 0L) {
-  direction_counts <- allocate_counts(count, c(1, 1), rotation)
-  c(rep("left", direction_counts[1L]), rep("right", direction_counts[2L]))
+make_orientation_mapping <- function(keys, subject_id) {
+  if ((subject_id - 1L) %% 2L == 1L) {
+    return(c(normal = keys[2L], rotated = keys[1L]))
+  }
+
+  c(normal = keys[1L], rotated = keys[2L])
 }
 
-opposite_direction <- function(direction) {
-  ifelse(direction == "left", "right", "left")
+make_fill_mapping <- function(keys, subject_id) {
+  if (((subject_id - 1L) %% 4L) %/% 2L == 1L) {
+    return(c(filled = keys[2L], unfilled = keys[1L]))
+  }
+
+  c(filled = keys[1L], unfilled = keys[2L])
 }
 
-get_intended_response <- function(task, trial_type, stop_rule, direction) {
+make_mapping_label <- function(mapping) {
+  if (length(mapping) == 0L) {
+    return("none")
+  }
+
+  paste(paste(names(mapping), mapping, sep = "_"), collapse = "_")
+}
+
+make_stimulus_rows <- function(count, use_fill_dimension, rotation = 0L) {
+  if (count <= 0L) {
+    return(data.frame(
+      orientation = character(0),
+      fill = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  if (!use_fill_dimension) {
+    orientation_counts <- allocate_counts(count, c(1, 1), rotation)
+
+    return(data.frame(
+      orientation = rep(stimulus_orientations, orientation_counts),
+      fill = "unfilled",
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  cells <- expand.grid(
+    orientation = stimulus_orientations,
+    fill = stimulus_fills,
+    stringsAsFactors = FALSE
+  )
+  cell_counts <- allocate_counts(count, rep(1, nrow(cells)), rotation)
+  cells[rep(seq_len(nrow(cells)), cell_counts), , drop = FALSE]
+}
+
+opposite_orientation <- function(orientation) {
+  ifelse(orientation == "normal", "rotated", "normal")
+}
+
+get_intended_response <- function(task, mappings, trial_type, stop_rule, orientation, fill) {
   if (trial_type == "go") {
     return(list(
       intended_action = "respond",
-      intended_key = unname(task$go_keys[direction]),
+      intended_key = unname(mappings$orientation[orientation]),
       requires_signal = FALSE
     ))
   }
@@ -134,10 +128,10 @@ get_intended_response <- function(task, trial_type, stop_rule, direction) {
 
   intended_key <- switch(
     rule$outcome,
-    go_key = unname(task$go_keys[direction]),
-    opposite_go_key = unname(task$go_keys[opposite_direction(direction)]),
+    orientation_key = unname(mappings$orientation[orientation]),
+    opposite_orientation_key = unname(mappings$orientation[opposite_orientation(orientation)]),
     fixed_key = rule$key,
-    direction_change_key = ifelse(direction == "left", rule$change_left, rule$change_right)
+    fill_key = unname(mappings$fill[fill])
   )
 
   list(
@@ -147,17 +141,21 @@ get_intended_response <- function(task, trial_type, stop_rule, direction) {
   )
 }
 
-make_trial_row <- function(subject_id, task_name, task, trial_type, stop_rule, signal, direction) {
-  intended <- get_intended_response(task, trial_type, stop_rule, direction)
+make_trial_row <- function(subject_id, task_name, task, mappings, trial_type, stop_rule, signal, orientation, fill) {
+  intended <- get_intended_response(task, mappings, trial_type, stop_rule, orientation, fill)
 
   data.frame(
     subject = subject_id,
     task = task_name,
+    counterbalance = ((subject_id - 1L) %% ifelse(task$use_fill_dimension, 4L, 2L)) + 1L,
+    orientation_mapping = make_mapping_label(mappings$orientation),
+    fill_mapping = make_mapping_label(mappings$fill),
     trial_type = trial_type,
     stop_rule = stop_rule,
     signal = signal,
-    direction = direction,
-    go_key = unname(task$go_keys[direction]),
+    orientation = orientation,
+    fill = fill,
+    orientation_key = unname(mappings$orientation[orientation]),
     intended_action = intended$intended_action,
     intended_key = intended$intended_key,
     requires_signal_for_success = as.integer(intended$requires_signal),
@@ -170,6 +168,10 @@ make_trial_row <- function(subject_id, task_name, task, trial_type, stop_rule, s
 }
 
 make_subject_design <- function(task_name, task, subject_id, n_trials, trials_per_block) {
+  mappings <- list(
+    orientation = make_orientation_mapping(task$orientation_keys, subject_id),
+    fill = if (task$use_fill_dimension) make_fill_mapping(task$fill_keys, subject_id) else character(0)
+  )
   type_counts <- allocate_counts(
     n_trials,
     c(go_probability, 1 - go_probability),
@@ -177,9 +179,12 @@ make_subject_design <- function(task_name, task, subject_id, n_trials, trials_pe
   )
   rows <- list()
 
-  for (direction in make_direction_rows(type_counts[1L], subject_id)) {
+  go_stimuli <- make_stimulus_rows(type_counts[1L], task$use_fill_dimension, subject_id)
+
+  for (row_index in seq_len(nrow(go_stimuli))) {
+    stimulus <- go_stimuli[row_index, , drop = FALSE]
     rows[[length(rows) + 1L]] <- make_trial_row(
-      subject_id, task_name, task, "go", "none", "none", direction
+      subject_id, task_name, task, mappings, "go", "none", "none", stimulus$orientation, stimulus$fill
     )
   }
 
@@ -187,16 +192,24 @@ make_subject_design <- function(task_name, task, subject_id, n_trials, trials_pe
 
   for (rule_index in seq_len(nrow(task$stop_rules))) {
     rule <- task$stop_rules[rule_index, , drop = FALSE]
+    stop_stimuli <- make_stimulus_rows(
+      rule_counts[rule_index],
+      task$use_fill_dimension,
+      subject_id + rule_index
+    )
 
-    for (direction in make_direction_rows(rule_counts[rule_index], subject_id + rule_index)) {
+    for (row_index in seq_len(nrow(stop_stimuli))) {
+      stimulus <- stop_stimuli[row_index, , drop = FALSE]
       rows[[length(rows) + 1L]] <- make_trial_row(
         subject_id,
         task_name,
         task,
+        mappings,
         "stop",
         rule$stop_rule,
         rule$signal,
-        direction
+        stimulus$orientation,
+        stimulus$fill
       )
     }
   }
@@ -213,11 +226,15 @@ make_subject_design <- function(task_name, task, subject_id, n_trials, trials_pe
       "task",
       "trial",
       "block",
+      "counterbalance",
+      "orientation_mapping",
+      "fill_mapping",
       "trial_type",
       "stop_rule",
       "signal",
-      "direction",
-      "go_key",
+      "orientation",
+      "fill",
+      "orientation_key",
       "intended_action",
       "intended_key",
       "requires_signal_for_success",

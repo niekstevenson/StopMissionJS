@@ -1,7 +1,10 @@
 (function runExperiment(global) {
   const definitions = global.stopTaskDefinitions;
   const persistence = global.stopMissionPersistence;
+  const keyMappingApi = global.stopMissionKeyMapping;
+  const stimulusView = global.stopMissionStimulusView;
   const timing = definitions.TIMING;
+  const sessionNamespace = "square";
   let sessionWasAborted = false;
   let activeJsPsych = null;
   let activeDebugKeyHandler = null;
@@ -26,11 +29,14 @@
         task: row.task,
         trial: row.trial,
         block: row.block,
+        counterbalance: row.counterbalance,
+        orientation_mapping: row.orientation_mapping,
+        fill_mapping: row.fill_mapping,
         trial_type: row.trial_type,
         stop_rule: row.stop_rule,
         signal: row.signal,
-        direction: row.direction,
-        go_key: row.go_key,
+        orientation: row.orientation,
+        fill: row.fill,
         fixation_duration: row.fixation_duration,
         response_window: row.response_window,
         iti: row.iti
@@ -51,42 +57,41 @@
     return serverRecord;
   }
 
-  function sanitizeTrialRecord(data, sessionId) {
-    const stimulusType = data.condition === "stop" ? `stop_${data.signal}` : "go";
+  function makeSavedTrialRecord(data, sessionId) {
+    const stimulusType = data.task_trial_type === "stop" ? `stop_${data.signal}` : "go";
 
     return {
-      record_type: data.record_type,
       task: data.task,
       subject: data.subject,
       session_id: sessionId,
-      phase: data.phase,
       block: data.block,
       trial: data.trial,
       stimulus_type: stimulusType,
-      stimulus_direction: data.direction,
+      stimulus_orientation: data.orientation,
+      stimulus_fill: data.fill,
       ssd_ms: data.ssd ?? "NA",
       ssd_actual_ms: data.actual_ssd ?? "NA",
       rt_ms: data.rt ?? "NA",
       response: data.response_key ?? "NA",
-      condition: data.condition,
-      stop_rule: data.stop_rule,
-      stop_signal: data.signal,
-      arrow_direction: data.direction,
-      go_key: data.go_key,
-      intended_action: data.intended_action,
-      intended_key: data.intended_key,
-      requires_signal_for_success: data.requires_signal_for_success,
-      response_key: data.response_key,
-      correct: data.correct,
-      stop_success: data.stop_success,
-      ssd_after_ms: data.ssd_after,
-      response_window_ms: data.response_window,
-      stimulus_onset_ms: data.stimulus_onset_time,
-      stop_signal_onset_ms: data.signal_onset_time,
-      response_timestamp_ms: data.response_time,
-      trial_end_ms: data.trial_end_time,
-      trial_duration_actual_ms: data.trial_duration
+      task_trial_type: data.task_trial_type,
+      ssd_after_ms: data.ssd_after
     };
+  }
+
+  function makeSavedKeyMapping(task, subject, sessionId, keyMapping) {
+    const record = {
+      task: task.id,
+      subject,
+      session_id: sessionId
+    };
+
+    definitions.KEYBOARD_ORDER.forEach((slot) => {
+      record[`${slot}_code`] = keyMapping[slot]?.code || "";
+      record[`${slot}_key`] = keyMapping[slot]?.key || "";
+      record[`${slot}_label`] = keyMapping[slot]?.label || "";
+    });
+
+    return record;
   }
 
   async function syncBufferedTrials(sessionKey) {
@@ -96,9 +101,7 @@
       return;
     }
 
-    const bufferedTrials = session.trials.filter(
-      (trial) => trial.record_type === "response_trial" && !trial.server_saved
-    );
+    const bufferedTrials = session.trials.filter((trial) => !trial.server_saved);
 
     for (const bufferedTrial of bufferedTrials) {
       try {
@@ -165,6 +168,15 @@
       await persistence.clearSession(sessionKey);
     }
 
+    if (session) {
+      return {
+        aborted: false,
+        resumeIndex: 0,
+        savedTrials: [],
+        sessionId: session.sessionId
+      };
+    }
+
     const sessionId = crypto.randomUUID();
     await persistence.initializeSession({
       sessionKey,
@@ -198,7 +210,7 @@
 
   function replaySsd(savedTrials) {
     const lastStopTrial = savedTrials
-      .filter((trial) => trial.condition === "stop" && Number.isFinite(trial.ssd_after_ms))
+      .filter((trial) => trial.task_trial_type === "stop" && Number.isFinite(trial.ssd_after_ms))
       .sort((a, b) => a.trial - b.trial)
       .at(-1);
 
@@ -217,7 +229,8 @@
         stimulus: `
           <div class="stop-message">
             <h1>Welcome</h1>
-            <p>You can read the instructions and complete practice trials, or skip directly to the main task if you already know this version.</p>
+            <p>You can read the instructions and complete practice trials before the main task.</p>
+            <p>Choose the practice option unless the researcher has told you to skip it.</p>
             <div class="button-row">
               <button type="button" id="with-instructions">Instructions and practice</button>
               <button type="button" id="skip-instructions">Skip to task</button>
@@ -239,171 +252,173 @@
     };
   }
 
-  function renderRuleRows(rows) {
+  function renderKeyboardGuide(task, keyMapping, responseKeys = task.responseKeys) {
+    return stimulusView.renderKeyboard({
+      keyboardOrder: definitions.KEYBOARD_ORDER,
+      responseKeys,
+      keyMapping,
+      keyAssignments: task.keyAssignments,
+      className: "instruction-keyboard-row"
+    });
+  }
+
+  function renderTrialPreview() {
     return `
-      <div class="instruction-rules">
-        ${rows
-          .map((row) => `
-            <div class="instruction-rule">
-              <div class="instruction-rule-label">${row.label}</div>
-              <div class="instruction-rule-value">${row.value}</div>
-            </div>
-          `)
-          .join("")}
+      <div class="trial-preview">
+        <div class="trial-preview-step">
+          <div class="trial-preview-fixation">+</div>
+        </div>
+        <div class="trial-preview-step">
+          ${stimulusView.renderStimulus({
+            orientation: "normal",
+            className: "instruction-stimulus"
+          })}
+        </div>
       </div>
     `;
   }
 
-  function renderGoKeyRows(task) {
-    return renderRuleRows(
-      task.responseKeys.map((key) => ({
-        label: key.toUpperCase(),
-        value: task.keyLabels[key]
+  function renderStimulusActionRows(task, keyMapping, rows) {
+    return `
+      <div class="stimulus-action-grid">
+        ${rows.map((row) => `
+          <div class="stimulus-action-row">
+            ${stimulusView.renderStimulus({
+              orientation: row.orientation,
+              fill: row.fill || "unfilled",
+              signal: row.signal || "none",
+              className: "instruction-stimulus"
+            })}
+            <div class="stimulus-action-response">
+              ${row.key
+                ? stimulusView.renderResponseKey(row.key, keyMapping, task.keyAssignments[row.key], { compact: true })
+                : `<div class="no-response-box">${row.responseText}</div>`}
+              ${row.note ? `<div class="stimulus-action-note">${row.note}</div>` : ""}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderGoResponseExamples(task, keyMapping) {
+    return renderStimulusActionRows(
+      task,
+      keyMapping,
+      definitions.STIMULUS.orientations.map((orientation) => ({
+        orientation,
+        key: task.orientationKeys[orientation]
       }))
     );
   }
 
-  function renderSignalIntro(task) {
-    if (task.id === "stimulus_selective") {
-      return `
-        <p>You have practiced pressing the arrow keys.</p>
-        <p>Now there is one more thing to watch for. On some trials, the circle around the arrow may change color shortly after the arrow appears.</p>
-        <p>There are two possible colors, and each color has its own rule.</p>
-      `;
-    }
-
-    return `
-      <p>You have practiced pressing the arrow keys.</p>
-      <p>Now there is one more thing to watch for. On some trials, the circle around the arrow may turn blue shortly after the arrow appears.</p>
-      <p>When you see the blue circle, use the blue rule.</p>
-    `;
+  function renderFillResponseExamples(task, keyMapping) {
+    return renderStimulusActionRows(
+      task,
+      keyMapping,
+      definitions.STIMULUS.fills.map((fill) => ({
+        orientation: "normal",
+        fill,
+        signal: "blue",
+        key: task.fillKeys[fill]
+      }))
+    );
   }
 
-  function renderSignalRule(task) {
-    if (task.id === "stop_change_two") {
-      return `
-        <p>Blue means switch to the other direction key.</p>
-        <p>Keep responding to the arrow, but switch to the other key when the blue circle appears.</p>
-        ${renderRuleRows([
-          { label: "Left arrow + blue circle", value: `Press ${task.goKeys.right.toUpperCase()}` },
-          { label: "Right arrow + blue circle", value: `Press ${task.goKeys.left.toUpperCase()}` }
-        ])}
-      `;
-    }
-
-    if (task.id === "stop_change_three") {
-      return `
-        <p>Blue means use the change key.</p>
-        <p>Keep responding to the arrow, but press <strong>M</strong> when the blue circle appears.</p>
-        ${renderRuleRows([
-          { label: "Any arrow + blue circle", value: "Press M" }
-        ])}
-      `;
-    }
-
-    if (task.id === "stop_change_four") {
-      const rule = task.stopRules[0];
-
-      return `
-        <p>Blue means use the change keys instead of the ordinary arrow keys.</p>
-        <p>Keep responding to the arrow, but use the matching change key when the blue circle appears.</p>
-        ${renderRuleRows([
-          { label: "Left arrow + blue circle", value: `Press ${rule.changeKeys.left.toUpperCase()}` },
-          { label: "Right arrow + blue circle", value: `Press ${rule.changeKeys.right.toUpperCase()}` }
-        ])}
-      `;
-    }
-
-    return `
-      <p>Use the color to decide whether to stop or continue.</p>
-      ${renderRuleRows([
-        { label: "Red circle", value: "Do not press any key" },
-        { label: "Blue circle", value: "Press the normal arrow key" }
-      ])}
-    `;
+  function getInstructionHelpers(keyMapping) {
+    return {
+      renderFillResponseExamples: (task) => renderFillResponseExamples(task, keyMapping),
+      renderGoResponseExamples: (task) => renderGoResponseExamples(task, keyMapping),
+      renderKeyboardGuide: (task) => renderKeyboardGuide(task, keyMapping),
+      renderStimulusActionRows: (task, rows) => renderStimulusActionRows(task, keyMapping, rows)
+    };
   }
 
-  function renderColorPracticeDescription(task) {
-    if (task.id === "stimulus_selective") {
-      return "Practice block 2: focus on the red and blue circles. If red appears, do not press a key. If blue appears, press the arrow key.";
-    }
-
-    return "Practice block 2: focus on blue circles. Keep responding to the arrow, and use the blue rule when blue appears.";
-  }
-
-  function makeGoInstructionPages(task) {
+  function makeGoInstructionPages(task, keyMapping) {
     return {
       type: jsPsychInstructions,
       pages: [
         `
           <h2>Welcome</h2>
-          <p>In this task, you will respond to arrows on the screen.</p>
-          <p>Try to respond quickly, while still pressing the correct key.</p>
-          <p>Keep your eyes near the center of the screen and keep your fingers on the response keys.</p>
+          <p>On each trial, a symbol appears at the center of the screen.</p>
+          <p>Press the correct response key as soon as you know the answer.</p>
+          <p>Respond quickly, but do not guess before the symbol appears.</p>
         `,
         `
-          <h2>Arrow Trials</h2>
-          <p>Each trial starts with a fixation cross.</p>
-          <p>Then an arrow appears inside a circle. Press the key that matches the arrow direction.</p>
-          ${renderGoKeyRows(task)}
+          <h2>Match the Symbol</h2>
+          <p>The two picture keys below are your response keys.</p>
+          <p>When a symbol appears, press the key with the matching picture.</p>
+          ${renderGoResponseExamples(task, keyMapping)}
         `,
         `
-          <h2>First Practice</h2>
-          <p>First, you will practice this arrow rule by itself.</p>
-          <p>Use this practice block to get comfortable with the keys.</p>
+          <h2>Trial Timing</h2>
+          <p>Each trial begins with a plus sign at the center of the screen.</p>
+          <p>Keep your eyes there. The symbol will appear in the same place.</p>
+          ${renderTrialPreview()}
+        `,
+        `
+          <h2>Your Response Keys</h2>
+          <p>Keep your fingers resting on the two picture keys shown below.</p>
+          ${renderKeyboardGuide(task, keyMapping, task.orientationResponseKeys)}
         `
       ],
       show_clickable_nav: true
     };
   }
 
-  function makeSignalInstructionPages(task) {
+  function makeSignalInstructionPages(task, keyMapping) {
     return {
       type: jsPsychInstructions,
       pages: [
         `
           <h2>Color Changes</h2>
-          ${renderSignalIntro(task)}
+          ${task.instructions.signalIntro}
         `,
         `
-          <h2>Color Rule</h2>
-          ${renderSignalRule(task)}
+          <h2>How to Respond</h2>
+          ${task.instructions.signalRule(task, getInstructionHelpers(keyMapping))}
+          ${renderKeyboardGuide(task, keyMapping)}
         `,
         `
-          <h2>Respond First</h2>
-          <p>Do not wait to see whether a color change will happen.</p>
-          <p>Start each trial by responding to the arrow. If the circle changes color, use the color rule.</p>
-        `,
-        `
-          <h2>Difficulty</h2>
-          <p>The color change is delayed, so using it will sometimes be difficult.</p>
-          <p>The delay changes during the task. The goal is for the color rule to be successful only about half of the time.</p>
-          <p>This is expected. Keep responding quickly and do not wait for a possible color change.</p>
-        `,
-        `
-          <h2>Practice</h2>
-          <p>Next, you will practice the color rule.</p>
-          <p>After that, you will practice the full task: some trials are arrows only, and some include a color change.</p>
+          <h2>Keep the Same Pace</h2>
+          <p>${task.instructions.timingDifficulty}</p>
+          <p>Do not slow down or wait to see whether the circle changes color. Respond to the symbol right away, and follow the new rule when you can.</p>
         `
       ],
       show_clickable_nav: true
     };
   }
 
-  function makeGoPracticeRows(count) {
-    const directions = ["left", "right"];
+  const PRACTICE_STIMULUS_PATTERN = [
+    { orientation: "normal", fill: "filled" },
+    { orientation: "normal", fill: "unfilled" },
+    { orientation: "rotated", fill: "filled" },
+    { orientation: "normal", fill: "filled" },
+    { orientation: "rotated", fill: "unfilled" },
+    { orientation: "rotated", fill: "unfilled" },
+    { orientation: "rotated", fill: "filled" },
+    { orientation: "normal", fill: "unfilled" },
+    { orientation: "rotated", fill: "unfilled" },
+    { orientation: "normal", fill: "filled" }
+  ];
 
-    return Array.from({ length: count }, (_, index) => ({
+  function getPracticeStimulus(task, index, offset) {
+    const stimulus = PRACTICE_STIMULUS_PATTERN[(index + offset) % PRACTICE_STIMULUS_PATTERN.length];
+    const fill = task.useFillDimension ? stimulus.fill : "unfilled";
+
+    return { orientation: stimulus.orientation, fill };
+  }
+
+  function makeGoPracticeRows(count) {
+    return Array.from({ length: count }, () => ({
       trial_type: "go",
       stop_rule: "none",
-      signal: "none",
-      direction: directions[index % directions.length]
+      signal: "none"
     }));
   }
 
   function makeStopPracticeRows(task, count) {
     const rows = [];
-    const directions = ["left", "right"];
 
     for (let index = 0; index < count; index += 1) {
       const rule = task.stopRules[index % task.stopRules.length];
@@ -411,25 +426,30 @@
       rows.push({
         trial_type: "stop",
         stop_rule: rule.id,
-        signal: rule.signal,
-        direction: directions[Math.floor(index / task.stopRules.length) % directions.length]
+        signal: rule.signal
       });
     }
 
     return rows;
   }
 
-  function interleaveRows(firstRows, secondRows) {
+  function makeMixedPracticeRows(task, goCount, stopCount) {
+    const goRows = makeGoPracticeRows(goCount);
+    const stopRows = makeStopPracticeRows(task, stopCount);
     const rows = [];
-    const maxLength = Math.max(firstRows.length, secondRows.length);
+    let goIndex = 0;
+    let stopIndex = 0;
+    const total = goCount + stopCount;
 
-    for (let index = 0; index < maxLength; index += 1) {
-      if (index < firstRows.length) {
-        rows.push(firstRows[index]);
-      }
+    for (let index = 0; index < total; index += 1) {
+      const targetStopCount = Math.floor(((index + 1) * stopCount) / total);
 
-      if (index < secondRows.length) {
-        rows.push(secondRows[index]);
+      if (stopIndex < targetStopCount) {
+        rows.push(stopRows[stopIndex]);
+        stopIndex += 1;
+      } else {
+        rows.push(goRows[goIndex]);
+        goIndex += 1;
       }
     }
 
@@ -439,17 +459,21 @@
   function makePracticeTrials(task, mode) {
     const rows = mode === "go"
       ? makeGoPracticeRows(10)
-      : mode === "color"
-        ? makeStopPracticeRows(task, 10)
-        : interleaveRows(makeGoPracticeRows(10), makeStopPracticeRows(task, 10));
+      : mode === "signal"
+        ? makeMixedPracticeRows(task, 8, 8)
+        : makeMixedPracticeRows(task, 14, 6);
+    const stimulusOffset = mode === "go" ? 0 : mode === "signal" ? 5 : 6;
 
     return rows.map((row, index) => {
-      const intended = definitions.getIntendedResponse(task, row);
+      const practiceRow = {
+        ...row,
+        ...getPracticeStimulus(task, index, stimulusOffset)
+      };
+      const intended = definitions.getIntendedResponse(task, practiceRow);
 
       return {
-        ...row,
+        ...practiceRow,
         trial: index + 1,
-        go_key: task.goKeys[row.direction],
         intended_action: intended.intended_action,
         intended_key: intended.intended_key,
         requires_signal_for_success: intended.requires_signal_for_success,
@@ -460,10 +484,60 @@
     });
   }
 
-  function makeBlockIntro(text) {
+  function makeMainStartTrial(task, resumeIndex) {
+    const resumeText = resumeIndex > 0
+      ? `<p>The main task will resume at trial ${resumeIndex + 1}.</p>`
+      : "";
+    const reminder = task.id === "stop_signal"
+      ? {
+          signal: "stop signal",
+          failureLine: "You are expected to fail to stop your response about half of the time."
+        }
+      : task.id === "stimulus_selective"
+        ? {
+            signal: "red stop signal",
+            failureLine: "On red stop trials, you are expected to fail to stop your response about half of the time.",
+            responseLine: "If the circle turns red, try to stop your response in time. If it turns blue, ignore the blue circle and respond to the symbol on screen."
+          }
+        : {
+            signal: "change signal",
+            failureLine: "You are expected to fail to change your response about half of the time.",
+            responseLine: "If the signal appears, try to change your response in time."
+          };
+
+    if (task.id === "stop_signal") {
+      reminder.responseLine = "If the signal appears, try to stop your response in time.";
+    }
+
     return {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: `<div class="stop-message"><p>${text}</p><p>Press space to start.</p></div>`,
+      stimulus: `
+        <div class="stop-message">
+          <h2>End of Practice</h2>
+          ${resumeText}
+          <p>The main experiment will start now.</p>
+          <p>Remember: the ${reminder.signal} appears after a delay.</p>
+          <p>Do not wait for the signal. Your goal is to respond as quickly as possible to the symbol.</p>
+          <p>The delay adapts during the task. ${reminder.failureLine}</p>
+          <p>${reminder.responseLine}</p>
+          <p>Press space to start the real experiment.</p>
+        </div>
+      `,
+      choices: [" "]
+    };
+  }
+
+  function makePracticeBlockIntro(title, text) {
+    return {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div class="stop-message">
+          <h2>${title}</h2>
+          <p>${text}</p>
+          <p>After each trial, you will get feedback on your response.</p>
+          <p>Press space to start.</p>
+        </div>
+      `,
       choices: [" "]
     };
   }
@@ -500,17 +574,19 @@
 
   function makePracticeIntro(mode, task) {
     if (mode === "go") {
-      return makeBlockIntro(
-        "Practice block 1: press the key for the arrow direction."
+      return makePracticeBlockIntro(
+        "Practice 1",
+        "Press the key with the picture that matches the symbol on the screen."
       );
     }
 
-    if (mode === "color") {
-      return makeBlockIntro(renderColorPracticeDescription(task));
+    if (mode === "signal") {
+      return makePracticeBlockIntro("Practice 2", task.instructions.signalPracticeDescription);
     }
 
-    return makeBlockIntro(
-      "Practice block 3: mixed trials. Some trials are arrows only, and some include a color change. Keep responding to the arrow, and use the color rule when a color appears."
+    return makePracticeBlockIntro(
+      "Final Practice",
+      "Keep responding quickly, and follow the new rule when the circle changes color."
     );
   }
 
@@ -520,7 +596,7 @@
 
     return {
       observe(data) {
-        if (data.condition !== "go") {
+        if (data.task_trial_type !== "go") {
           return;
         }
 
@@ -553,7 +629,7 @@
           stimulus: `
             <div class="stop-message">
               <h2>Please stay engaged</h2>
-              <p>We have detected several missed responses on arrow-only trials.</p>
+              <p>Several recent trials had no response when a response was expected.</p>
               <p>If you are no longer actively participating in the experiment, this may lead to loss of compensation.</p>
               <p>Press space to continue.</p>
             </div>
@@ -565,10 +641,39 @@
     };
   }
 
-  function makeTrialsProcedure(jsPsych, task, trials, phase, block, getSsd, updateSsd, participationMonitor = null) {
+  function getMainFeedback(data) {
+    if (data.task_trial_type === "go" && data.correct === false) {
+      return "Wrong";
+    }
+
+    if (data.task_trial_type === "stop" && data.stop_success === false) {
+      return "Failed Stop";
+    }
+
+    return "";
+  }
+
+  function makeTrialsProcedure(
+    jsPsych,
+    task,
+    trials,
+    phase,
+    block,
+    getSsd,
+    updateSsd,
+    keyMapping,
+    participationMonitor = null,
+    responseKeys = task.responseKeys
+  ) {
+    const keyboardHtml = stimulusView.renderKeyboard({
+      keyboardOrder: definitions.KEYBOARD_ORDER,
+      responseKeys,
+      keyMapping,
+      keyAssignments: task.keyAssignments
+    });
     const fixationTrial = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: `<div class="fixation-stage"><div class="fixation-marker">+</div></div>`,
+      stimulus: `<div class="fixation-stage"><div class="fixation-marker">+</div>${keyboardHtml}</div>`,
       choices: "NO_KEYS",
       trial_duration: jsPsych.timelineVariable("fixation_duration")
     };
@@ -580,13 +685,13 @@
       block,
       trial_index: jsPsych.timelineVariable("trial"),
       trial_type: jsPsych.timelineVariable("trial_type"),
-      stop_rule: jsPsych.timelineVariable("stop_rule"),
       signal: jsPsych.timelineVariable("signal"),
-      direction: jsPsych.timelineVariable("direction"),
-      response_keys: task.responseKeys,
-      key_labels: task.keyLabels,
+      orientation: jsPsych.timelineVariable("orientation"),
+      fill: jsPsych.timelineVariable("fill"),
+      response_keys: responseKeys,
+      key_map: keyMapping,
+      key_assignments: task.keyAssignments,
       keyboard_order: definitions.KEYBOARD_ORDER,
-      go_key: jsPsych.timelineVariable("go_key"),
       intended_action: jsPsych.timelineVariable("intended_action"),
       intended_key: jsPsych.timelineVariable("intended_key"),
       requires_signal_for_success: jsPsych.timelineVariable("requires_signal_for_success"),
@@ -595,7 +700,7 @@
         trial.ssd = getSsd();
       },
       on_finish: (data) => {
-        if (data.condition !== "stop") {
+        if (data.task_trial_type !== "stop") {
           if (participationMonitor) {
             participationMonitor.observe(data);
           }
@@ -614,7 +719,7 @@
 
     const itiTrial = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: "",
+      stimulus: `<div class="iti-stage">${keyboardHtml}</div>`,
       choices: "NO_KEYS",
       trial_duration: jsPsych.timelineVariable("iti")
     };
@@ -625,14 +730,49 @@
         const feedback = lastTrial.correct ? "Correct" : "Wrong";
         const feedbackClass = lastTrial.correct ? "practice-feedback-correct" : "practice-feedback-wrong";
 
-        return `<div class="practice-feedback ${feedbackClass}">${feedback}</div>`;
+        return `
+          <div class="practice-feedback-stage">
+            <div class="practice-feedback ${feedbackClass}">${feedback}</div>
+            ${keyboardHtml}
+          </div>
+        `;
       },
       choices: "NO_KEYS",
       trial_duration: 600
     };
+    const mainFeedbackTrial = {
+      timeline: [
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: () => {
+            const lastTrial = jsPsych.data.get().last(1).values()[0];
+            const feedback = getMainFeedback(lastTrial);
+
+            return `
+              <div class="practice-feedback-stage">
+                <div class="practice-feedback practice-feedback-wrong">${feedback}</div>
+                ${keyboardHtml}
+              </div>
+            `;
+          },
+          choices: "NO_KEYS",
+          trial_duration: 600
+        }
+      ],
+      conditional_function: () => {
+        const lastTrial = jsPsych.data.get().last(1).values()[0];
+        return getMainFeedback(lastTrial) !== "";
+      }
+    };
     const timeline = phase === "practice"
       ? [fixationTrial, responseTrial, practiceFeedbackTrial, itiTrial]
-      : [fixationTrial, responseTrial, makeParticipationWarningTrial(participationMonitor), itiTrial];
+      : [
+          fixationTrial,
+          responseTrial,
+          mainFeedbackTrial,
+          makeParticipationWarningTrial(participationMonitor),
+          itiTrial
+        ];
 
     return {
       timeline,
@@ -640,7 +780,7 @@
     };
   }
 
-  function makeMainTimeline(jsPsych, task, trials, totalBlocks, getSsd, updateSsd) {
+  function makeMainTimeline(jsPsych, task, trials, totalBlocks, getSsd, updateSsd, keyMapping) {
     const timeline = [];
     const participationMonitor = makeParticipationMonitor();
 
@@ -653,6 +793,7 @@
         jsPsych.timelineVariable("block"),
         getSsd,
         updateSsd,
+        keyMapping,
         participationMonitor
       ));
 
@@ -664,8 +805,8 @@
 
   async function boot() {
     const { task: taskId, subject } = getQueryConfig();
-    const task = definitions.getTask(taskId);
-    const sessionKey = `${task.id}-${String(subject).padStart(3, "0")}`;
+    const task = definitions.getTask(taskId, subject);
+    const sessionKey = `${sessionNamespace}-${task.id}-${String(subject).padStart(3, "0")}`;
 
     try {
       const rawDesign = await global.stopMissionLoadDesign(task.id, subject);
@@ -689,17 +830,23 @@
         return;
       }
 
+      const keyMapping = await keyMappingApi.collect(task);
+      await persistence.saveKeyMapping(sessionKey, keyMapping);
+      persistence.postKeyMapping(makeSavedKeyMapping(task, subject, session.sessionId, keyMapping)).catch((error) => {
+        console.error(error);
+      });
+
       sessionWasAborted = false;
       const jsPsych = initJsPsych({
         display_element: "jspsych-target",
         on_data_update: (data) => {
-          if (data.record_type === "response_trial") {
-            persistResponseTrial(sessionKey, sanitizeTrialRecord(data, session.sessionId));
+          if (data.phase === "main") {
+            persistResponseTrial(sessionKey, makeSavedTrialRecord(data, session.sessionId));
             return;
           }
 
-          if (data.record_type === "practice_trial") {
-            persistence.postRecord(sanitizeTrialRecord(data, session.sessionId)).catch((error) => {
+          if (data.phase === "practice") {
+            persistence.postRecord(makeSavedTrialRecord(data, session.sessionId)).catch((error) => {
               console.error(error);
             });
           }
@@ -751,7 +898,7 @@
       const instructionChoice = makeInstructionChoice();
       const instructionAndPractice = {
         timeline: [
-          makeGoInstructionPages(task),
+          makeGoInstructionPages(task, keyMapping),
           makePracticeIntro("go", task),
           makeTrialsProcedure(
             jsPsych,
@@ -762,20 +909,24 @@
             () => practiceSsd,
             (value) => {
               practiceSsd = value;
-            }
+            },
+            keyMapping,
+            null,
+            task.orientationResponseKeys
           ),
-          makeSignalInstructionPages(task),
-          makePracticeIntro("color", task),
+          makeSignalInstructionPages(task, keyMapping),
+          makePracticeIntro("signal", task),
           makeTrialsProcedure(
             jsPsych,
             task,
-            makePracticeTrials(task, "color"),
+            makePracticeTrials(task, "signal"),
             "practice",
-            "practice_color",
+            "practice_signal",
             () => practiceSsd,
             (value) => {
               practiceSsd = value;
-            }
+            },
+            keyMapping
           ),
           makePracticeIntro("mixed", task),
           makeTrialsProcedure(
@@ -787,15 +938,14 @@
             () => practiceSsd,
             (value) => {
               practiceSsd = value;
-            }
+            },
+            keyMapping
           )
         ],
         conditional_function: () => instructionChoice.value
       };
 
-      const startMain = makeBlockIntro(
-        `${task.title}. ${session.resumeIndex > 0 ? `Resuming from trial ${session.resumeIndex + 1}.` : "Starting from trial 1."}`
-      );
+      const startMain = makeMainStartTrial(task, session.resumeIndex);
 
       const mainTimeline = makeMainTimeline(
         jsPsych,
@@ -805,12 +955,13 @@
         () => mainSsd,
         (value) => {
           mainSsd = value;
-        }
+        },
+        keyMapping
       );
 
       const endScreen = {
         type: jsPsychHtmlKeyboardResponse,
-        stimulus: "<p>Experiment complete.</p><p>Press space to finish.</p>",
+        stimulus: "<div class=\"stop-message\"><p>The experiment is complete.</p><p>Press space to finish.</p></div>",
         choices: [" "]
       };
 

@@ -1,11 +1,11 @@
 (function attachStopTaskDefinitions(root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory();
+    module.exports = factory(root);
     return;
   }
 
-  root.stopTaskDefinitions = factory();
-})(typeof globalThis !== "undefined" ? globalThis : this, function buildDefinitions() {
+  root.stopTaskDefinitions = factory(root);
+})(typeof globalThis !== "undefined" ? globalThis : this, function buildDefinitions(root) {
   const TIMING = {
     initialSsd: 200,
     ssdStep: 50,
@@ -15,103 +15,102 @@
     iti: 500
   };
 
-  const KEYBOARD_ORDER = ["z", "x", "c", "v", "b", "n", "m"];
-
-  const TASKS = {
-    stop_change_two: {
-      id: "stop_change_two",
-      title: "Stop change with two buttons",
-      goKeys: { left: "z", right: "m" },
-      responseKeys: ["z", "m"],
-      keyLabels: { z: "Left", m: "Right" },
-      stopRules: [
-        {
-          id: "opposite",
-          signal: "blue",
-          weight: 1,
-          outcome: "opposite_go_key",
-          requiresSignalForSuccess: true
-        }
-      ]
-    },
-    stop_change_three: {
-      id: "stop_change_three",
-      title: "Stop change with three buttons",
-      goKeys: { left: "z", right: "c" },
-      responseKeys: ["z", "c", "m"],
-      keyLabels: { z: "Left", c: "Right", m: "Change" },
-      stopRules: [
-        {
-          id: "change",
-          signal: "blue",
-          weight: 1,
-          outcome: "fixed_key",
-          key: "m",
-          requiresSignalForSuccess: true
-        }
-      ]
-    },
-    stop_change_four: {
-      id: "stop_change_four",
-      title: "Stop change with four buttons",
-      goKeys: { left: "z", right: "c" },
-      responseKeys: ["z", "c", "b", "m"],
-      keyLabels: { z: "Left", c: "Right", b: "Left change", m: "Right change" },
-      stopRules: [
-        {
-          id: "direction_change",
-          signal: "blue",
-          weight: 1,
-          outcome: "direction_change_key",
-          changeKeys: { left: "b", right: "m" },
-          requiresSignalForSuccess: true
-        }
-      ]
-    },
-    stimulus_selective: {
-      id: "stimulus_selective",
-      title: "Stimulus selective stop signal",
-      goKeys: { left: "z", right: "m" },
-      responseKeys: ["z", "m"],
-      keyLabels: { z: "Left", m: "Right" },
-      stopRules: [
-        {
-          id: "withhold",
-          signal: "red",
-          weight: 1,
-          outcome: "withhold",
-          requiresSignalForSuccess: false
-        },
-        {
-          id: "ignore",
-          signal: "blue",
-          weight: 1,
-          outcome: "go_key",
-          requiresSignalForSuccess: false
-        }
-      ]
-    }
+  const STIMULUS = {
+    orientations: ["normal", "rotated"],
+    fills: ["filled", "unfilled"]
   };
 
-  const TASK_ORDER = [
-    "stop_change_two",
-    "stop_change_three",
-    "stop_change_four",
-    "stimulus_selective"
-  ];
+  const KEYBOARD_ORDER = ["left_shift", "left_inner", "right_inner", "right_shift"];
 
-  function getTask(taskId) {
+  const TASK_SPECS = loadTaskSpecs(root);
+  const TASKS = Object.fromEntries(TASK_SPECS.map((task) => [task.id, task]));
+  const TASK_ORDER = TASK_SPECS.map((task) => task.id);
+
+  function loadTaskSpecs(root) {
+    if (typeof module === "object" && module.exports) {
+      return [
+        require("./tasks/stop-change-two.js"),
+        require("./tasks/stop-change-three.js"),
+        require("./tasks/stop-change-four.js"),
+        require("./tasks/stop-signal.js"),
+        require("./tasks/stimulus-selective.js")
+      ];
+    }
+
+    return root.stopTaskSpecs || [];
+  }
+
+  function getCounterbalanceIndex(subject, levels) {
+    return (Number(subject) - 1) % levels;
+  }
+
+  function getOrientationMapping(keys, subject) {
+    const flipped = getCounterbalanceIndex(subject, 2) === 1;
+
+    return flipped
+      ? { normal: keys[1], rotated: keys[0] }
+      : { normal: keys[0], rotated: keys[1] };
+  }
+
+  function getFillMapping(keys, subject) {
+    const flipped = Math.floor(getCounterbalanceIndex(subject, 4) / 2) === 1;
+
+    return flipped
+      ? { filled: keys[1], unfilled: keys[0] }
+      : { filled: keys[0], unfilled: keys[1] };
+  }
+
+  function buildKeyAssignments(task, orientationKeys, fillKeys) {
+    const assignments = {};
+
+    STIMULUS.orientations.forEach((orientation) => {
+      assignments[orientationKeys[orientation]] = {
+        kind: "orientation",
+        orientation
+      };
+    });
+
+    if (task.changeKey) {
+      assignments[task.changeKey] = {
+        kind: "change",
+        signal: "blue"
+      };
+    }
+
+    if (fillKeys) {
+      STIMULUS.fills.forEach((fill) => {
+        assignments[fillKeys[fill]] = {
+          kind: "fill",
+          fill,
+          signal: "blue"
+        };
+      });
+    }
+
+    return assignments;
+  }
+
+  function getTask(taskId, subject = 1) {
     const task = TASKS[taskId];
 
     if (!task) {
       throw new Error(`Unknown task "${taskId}".`);
     }
 
-    return task;
+    const orientationKeys = getOrientationMapping(task.orientationResponseKeys, subject);
+    const fillKeys = task.fillResponseKeys ? getFillMapping(task.fillResponseKeys, subject) : null;
+
+    return {
+      ...task,
+      orientationKeys,
+      fillKeys,
+      keyAssignments: buildKeyAssignments(task, orientationKeys, fillKeys),
+      counterbalance: getCounterbalanceIndex(subject, task.useFillDimension ? 4 : 2) + 1
+    };
   }
 
-  function oppositeDirection(direction) {
-    return direction === "left" ? "right" : "left";
+  function oppositeOrientation(orientation) {
+    return orientation === "normal" ? "rotated" : "normal";
   }
 
   function getStopRule(task, ruleId) {
@@ -119,12 +118,13 @@
   }
 
   function getIntendedResponse(task, trial) {
-    const direction = trial.direction;
+    const orientation = trial.orientation;
+    const fill = trial.fill || "unfilled";
 
     if (trial.trial_type !== "stop") {
       return {
         intended_action: "respond",
-        intended_key: task.goKeys[direction],
+        intended_key: task.orientationKeys[orientation],
         requires_signal_for_success: false
       };
     }
@@ -143,10 +143,10 @@
       };
     }
 
-    if (rule.outcome === "opposite_go_key") {
+    if (rule.outcome === "opposite_orientation_key") {
       return {
         intended_action: "respond",
-        intended_key: task.goKeys[oppositeDirection(direction)],
+        intended_key: task.orientationKeys[oppositeOrientation(orientation)],
         requires_signal_for_success: rule.requiresSignalForSuccess
       };
     }
@@ -159,28 +159,29 @@
       };
     }
 
-    if (rule.outcome === "direction_change_key") {
+    if (rule.outcome === "fill_key") {
       return {
         intended_action: "respond",
-        intended_key: rule.changeKeys[direction],
+        intended_key: task.fillKeys[fill],
         requires_signal_for_success: rule.requiresSignalForSuccess
       };
     }
 
     return {
       intended_action: "respond",
-      intended_key: task.goKeys[direction],
+      intended_key: task.orientationKeys[orientation],
       requires_signal_for_success: rule.requiresSignalForSuccess
     };
   }
 
   return {
     KEYBOARD_ORDER,
+    STIMULUS,
     TASKS,
     TASK_ORDER,
     TIMING,
     getIntendedResponse,
     getTask,
-    oppositeDirection
+    oppositeOrientation
   };
 });
