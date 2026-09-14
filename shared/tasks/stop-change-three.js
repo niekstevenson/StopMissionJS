@@ -36,9 +36,8 @@
       signalRule(task, helpers) {
         return `
           <p>On a change trial, when the circle turns blue, press the key marked with the blue square.</p>
-          ${helpers.renderStimulusActionRows(task, [
-            { orientation: "normal", signal: "blue", key: task.changeKey },
-            { orientation: "rotated", signal: "blue", key: task.changeKey }
+        ${helpers.renderStimulusActionRows(task, [
+         { orientations: ["normal", "rotated"], signal: "blue", key: task.changeKey }
           ])}
         `;
       },

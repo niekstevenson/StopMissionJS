@@ -34,9 +34,8 @@
       signalRule(task, helpers) {
         return `
           <p>On a stop trial, when the circle turns red, do not press any response key.</p>
-          ${helpers.renderStimulusActionRows(task, [
-            { orientation: "normal", signal: "red", responseText: "Do not press any key" },
-            { orientation: "rotated", signal: "red", responseText: "Do not press any key" }
+           ${helpers.renderStimulusActionRows(task, [
+            { orientations: ["normal", "rotated"], signal: "red", responseText: "Do not press any key" }
           ])}
         `;
       },
