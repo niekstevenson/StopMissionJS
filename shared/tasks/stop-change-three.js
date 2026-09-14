@@ -31,6 +31,7 @@
         <p>We will now add a new rule to the task.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
         <p>On a change trial, press the key marked with the blue square, no matter which symbol is inside the circle.</p>
+        <p>That is, when the circle is is black, respond as usual. But when the circle turns blue, press the key marked with the blue square with your other hand.</p>
       `,
       signalRule(task, helpers) {
         return `
