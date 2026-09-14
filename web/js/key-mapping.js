@@ -159,7 +159,7 @@
         <p class="keymap-prompt">${prompt}</p>
         <p class="keymap-error" aria-live="polite">${error}</p>
         <div class="button-row">
-          <button type="button" data-keymap-reset>Start this side again</button>
+          <button type="button" data-keymap-reset>Redo key selection</button>
           <button type="button" data-keymap-continue ${complete ? "" : "disabled"}>Continue</button>
         </div>
       </div>

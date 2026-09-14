@@ -24,9 +24,9 @@
       }
     ],
     instructions: {
-      timingDifficulty: "The circle turns red after the symbol appears, so it may sometimes be difficult to stop yourself from responding in time.",
+      timingDifficulty: "The circle turns red after the symbol appears, so it may sometimes be difficult to stop yourself from responding.",
       signalIntro: `
-        <p>We will now add a new rule to the task.</p>
+        <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns red shortly after the symbol appears. These are stop trials.</p>
         <p>On a stop trial, try to stop yourself from pressing a key.</p>
       `,
