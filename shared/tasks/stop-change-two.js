@@ -28,11 +28,12 @@
       signalIntro: `
         <p>We will now add a new rule to the task.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
-        <p>On a change trial, the other picture key is correct.</p>
+        <p>On a change trial, respond with the other response key.</p>
+        <p>That is, when the circle is is black, respond as usual. But when the circle turns blue, respond with the other response key.</p>
       `,
       signalRule(task, helpers) {
         return `
-          <p>On a change trial, when the circle turns blue, press the other picture key.</p>
+          <p>On a change trial, when the circle turns blue, press the other response key.</p>
           ${helpers.renderStimulusActionRows(task, [
             { orientation: "normal", signal: "blue", key: task.orientationKeys.rotated },
             { orientation: "rotated", signal: "blue", key: task.orientationKeys.normal }
@@ -40,7 +41,7 @@
         `;
       },
       signalPracticeDescription:
-        "Press the matching picture key. On change trials, when the circle turns blue, press the other picture key."
+        "Press the matching response key. On change trials, when the circle turns blue, press the other response key."
     }
   };
 });
