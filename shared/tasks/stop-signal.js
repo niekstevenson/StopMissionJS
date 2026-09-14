@@ -29,7 +29,7 @@
         <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns red shortly after the symbol appears. These are stop trials.</p>
         <p>On a stop trial, try to stop yourself from pressing a key.</p>
-         <p>That is, when the circle is is black, respond as usual. But when the circle turns red, do not press any key.</p>
+         <p>That is, when the circle is black, respond as usual. But when the circle turns red, do not press any key.</p>
       `,
       signalRule(task, helpers) {
         return `

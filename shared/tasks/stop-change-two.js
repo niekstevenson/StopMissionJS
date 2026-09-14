@@ -29,7 +29,7 @@
         <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
         <p>On a change trial, respond with the other response key.</p>
-        <p>That is, when the circle is is black, respond as usual. But when the circle turns blue, respond with the other response key.</p>
+        <p>That is, when the circle is black, respond as usual. But when the circle turns blue, respond with the other response key.</p>
       `,
       signalRule(task, helpers) {
         return `

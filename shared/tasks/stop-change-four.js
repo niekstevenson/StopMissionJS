@@ -32,12 +32,12 @@
         <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
         <p>On a change trial, respond with your right hand instead of your left.</p>
-        <p>Furthermore, the shape is now irrelevant. Rather, the correct response is now determined by whether the shape is filled or not.</p>
-        <p>That is, when the circle is is black, respond as usual. But when the circle turns blue, respond to the fill (hollow / filled) of the shape with your other hand.</p>
+        <p>Furthermore, the shape is now irrelevant. Rather, the correct response is now determined by whether the symbols is filled or not.</p>
+        <p>That is, when the circle is black, respond as usual. But when the circle turns blue, respond to the fill (hollow / filled) of the symbol, rather than its shape, with your other hand.</p>
       `,
       signalRule(task, helpers) {
         return `
-          <p>On a change trial, when the circle turns blue, choose between the two picture keys on the right.</p>
+          <p>On a change trial, when the circle turns blue, choose between the two response keys on the right.</p>
           ${helpers.renderFillResponseExamples(task)}
         `;
       },

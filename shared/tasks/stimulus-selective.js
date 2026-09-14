@@ -37,7 +37,7 @@
         <p>On some trials, the circle around the symbol turns either red or blue shortly after the symbol appears.</p>
         <p>Trials where the circle turns red are stop trials. On stop trials, try to stop yourself from pressing a key.</p> 
         <p> Trials where the circle turns blue are ignore trials. On ignore trials, ignore the blue circle and respond to the symbol on screen as usual.</p>
-        <p>That is, when the circle is is black or blue, respond as usual. But when the circle turns red, do not press any key.</p>
+        <p>That is, when the circle is black or blue, respond as usual. But when the circle turns red, do not press any key.</p>
       `,
       signalRule(task, helpers) {
         return `
@@ -51,7 +51,7 @@
         `;
       },
       signalPracticeDescription:
-        "Press the matching picture key. On stop trials, when the circle turns red, try not to press any response key. On ignore trials, when the circle turns blue, ignore the blue circle and respond to the symbol on screen."
+        "Press the matching response key. On stop trials, when the circle turns red, try not to press any response key. On ignore trials, when the circle turns blue, ignore the blue circle and respond to the symbol on screen."
     }
   };
 });
