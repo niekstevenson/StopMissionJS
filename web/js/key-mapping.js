@@ -10,16 +10,16 @@
         {
           slot: "left_shift",
           label: "Left Shift",
-          prompt: "Press Left Shift.",
+          prompt: "Press the Left Shift key (marked Shift or ⇧, on the left side of your keyboard).",
           requiredCode: "ShiftLeft",
-          error: "That was not Left Shift. Press the Shift key on the left side of your keyboard."
+          error: "That was not the Left Shift key. The Left Shift key is on the left side of your keyboard, usually marked with the word 'Shift' or the symbol ⇧."
         },
         {
           slot: "left_inner",
           label: "Key to the right of Left Shift",
-          prompt: "Press the key immediately to the right of Left Shift.",
+          prompt: "Press the key immediately to the right of the Left Shift key.",
           rejectShift: true,
-          error: "That was a Shift key. Press the key immediately to the right of Left Shift."
+          error: "That was a Shift key. Press the key immediately to the right of the Left Shift key."
         }
       ]
     },
@@ -31,16 +31,16 @@
         {
           slot: "right_shift",
           label: "Right Shift",
-          prompt: "Press Right Shift.",
+          prompt: "Press the Right Shift key (marked Shift or ⇧, on the right side of your keyboard).",
           requiredCode: "ShiftRight",
-          error: "That was not Right Shift. Press the Shift key on the right side of your keyboard."
+          error: "That was not the Right Shift key. The Right Shift key is on the right side of your keyboard, usually marked with the word 'Shift' or the symbol ⇧."
         },
         {
           slot: "right_inner",
           label: "Key to the left of Right Shift",
-          prompt: "Press the key immediately to the left of Right Shift.",
+          prompt: "Press the key immediately to the left of the Right Shift key.",
           rejectShift: true,
-          error: "That was a Shift key. Press the key immediately to the left of Right Shift."
+          error: "That was a Shift key. Press the key immediately to the left of the Right Shift key."
         }
       ]
     }
@@ -60,16 +60,16 @@
 
   function renderIntro(target, task) {
     const rightHandText = needsRightHand(task)
-      ? "This task will use keys on both sides of the keyboard."
-      : "This task will use two keys on the left side of the keyboard.";
+      ? "This task will use keys on both sides of your keyboard."
+      : "This task will use two keys on the left side of your keyboard.";
 
     return new Promise((resolve) => {
       target.innerHTML = `
         <div class="stop-message keymap-message">
-          <h1>Welcome</h1>
-          <p>Keyboard layouts can differ, so we need to check the exact keys you will use for this task.</p>
+          <h1>Keyboard setup</h1>
+          <p>Before you can start the task, we have to determine the exact keys that you will use to respond.</p>
           <p>${rightHandText}</p>
-          <p>On the next screen, press the keys exactly as requested.</p>
+          <p>On the next screen, please press the keys on your keyboard exactly as requested.</p>
           <div class="button-row">
             <button type="button" data-keymap-start>Set response keys</button>
           </div>
