@@ -353,7 +353,7 @@
         `,
         `
           <h2>Correct Response Keys</h2>
-          <p>Below, you see the symbols and which symbol matches which key.</p>
+          <p>Below, you see the symbols and the matching response keys.</p>
           <p>When a symbol appears, press the key with the matching symbol.</p>
           ${renderGoResponseExamples(task, keyMapping)}
         `,
