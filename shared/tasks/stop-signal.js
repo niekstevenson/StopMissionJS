@@ -40,7 +40,7 @@
         `;
       },
       signalPracticeDescription:
-        "Press the matching picture key. On stop trials, when the circle turns red, try not to press any response key."
+        "Press the matching response key. On stop trials, when the circle turns red, try not to press any response key."
     }
   };
 });
