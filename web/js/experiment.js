@@ -281,22 +281,29 @@
   function renderStimulusActionRows(task, keyMapping, rows) {
     return `
       <div class="stimulus-action-grid">
-        ${rows.map((row) => `
-          <div class="stimulus-action-row">
-            ${stimulusView.renderStimulus({
-              orientation: row.orientation,
-              fill: row.fill || "unfilled",
-              signal: row.signal || "none",
-              className: "instruction-stimulus"
-            })}
-            <div class="stimulus-action-response">
-              ${row.key
-                ? stimulusView.renderResponseKey(row.key, keyMapping, task.keyAssignments[row.key], { compact: true })
-                : `<div class="no-response-box">${row.responseText}</div>`}
-              ${row.note ? `<div class="stimulus-action-note">${row.note}</div>` : ""}
+        ${rows.map((row) => {
+          const fills = row.fills || [row.fill || "unfilled"];
+          const orientations = row.orientations || [row.orientation];
+          const variants = orientations.flatMap((orientation) => fills.map((fill) => ({ orientation, fill })));
+          const stimuli = variants.map((variant) => stimulusView.renderStimulus({
+            orientation: variant.orientation,
+            fill: variant.fill,
+            signal: row.signal || "none",
+            className: "instruction-stimulus"
+          })).join("");
+
+          return `
+            <div class="stimulus-action-row${variants.length > 1 ? " stimulus-action-row-pair" : ""}">
+              ${variants.length > 1 ? `<div class="stimulus-action-stimuli">${stimuli}</div>` : stimuli}
+              <div class="stimulus-action-response">
+                ${row.key
+                  ? stimulusView.renderResponseKey(row.key, keyMapping, task.keyAssignments[row.key], { compact: true })
+                  : `<div class="no-response-box">${row.responseText}</div>`}
+                ${row.note ? `<div class="stimulus-action-note">${row.note}</div>` : ""}
+              </div>
             </div>
-          </div>
-        `).join("")}
+          `;
+        }).join("")}
       </div>
     `;
   }
@@ -307,17 +314,17 @@
       keyMapping,
       definitions.STIMULUS.orientations.map((orientation) => ({
         orientation,
+        fills: task.useFillDimension ? definitions.STIMULUS.fills : ["unfilled"],
         key: task.orientationKeys[orientation]
       }))
     );
   }
-
-  function renderFillResponseExamples(task, keyMapping) {
+    function renderFillResponseExamples(task, keyMapping) {
     return renderStimulusActionRows(
       task,
       keyMapping,
       definitions.STIMULUS.fills.map((fill) => ({
-        orientation: "normal",
+        orientations: definitions.STIMULUS.orientations,
         fill,
         signal: "blue",
         key: task.fillKeys[fill]
@@ -356,6 +363,7 @@
           <p>Below, you see the symbols and the matching response keys.</p>
           <p>When a symbol appears, press the key with the matching symbol.</p>
           ${renderGoResponseExamples(task, keyMapping)}
+          ${task.instructions.goNote || ""}
         `,
         `
           <h2>Trial Timing</h2>

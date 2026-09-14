@@ -153,7 +153,17 @@ body {
   border: 1px solid #d7d7d2;
   background: #fafafa;
 }
+.stimulus-action-stimuli {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
 
+.stimulus-action-row-pair {
+  grid-template-columns: minmax(276px, 320px) minmax(180px, 1fr);
+}
 .stimulus-action-response {
   display: grid;
   gap: 8px;

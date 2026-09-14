@@ -26,11 +26,14 @@
       }
     ],
     instructions: {
+      goNote: "<p>Symbols are sometimes hollow and sometimes filled. For now, you can ignore this. Only the shape matters.</p>",
       timingDifficulty: "The circle turns blue after the symbol appears, so it may sometimes be difficult to change your response in time.",
       signalIntro: `
         <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
-        <p>On a change trial, use the two picture keys on the right side of the keyboard.</p>
+        <p>On a change trial, respond with your right hand instead of your left.</p>
+        <p>Furthermore, the shape is now irrelevant. Rather, the correct response is now determined by whether the shape is filled or not.</p>
+        <p>That is, when the circle is is black, respond as usual. But when the circle turns blue, respond to the fill (hollow / filled) of the shape with your other hand.</p>
       `,
       signalRule(task, helpers) {
         return `
@@ -39,7 +42,7 @@
         `;
       },
       signalPracticeDescription:
-        "Press the matching picture key. On change trials, when the circle turns blue, use the matching picture key on the right side."
+        "Press the matching response key. On change trials, when the circle turns blue, use the matching response key on the right side."
     }
   };
 });
