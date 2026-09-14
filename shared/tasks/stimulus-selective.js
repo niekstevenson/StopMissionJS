@@ -33,7 +33,7 @@
     instructions: {
       timingDifficulty: "The circle changes color after the symbol appears, so on a stop trial it may sometimes be difficult to stop yourself from responding in time.",
       signalIntro: `
-        <p>We will now add two new rules to the task.</p>
+        <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns red or blue shortly after the symbol appears.</p>
         <p>Trials where the circle turns red are stop trials. Trials where it turns blue are ignore trials: ignore the blue circle and respond to the symbol on screen.</p>
       `,

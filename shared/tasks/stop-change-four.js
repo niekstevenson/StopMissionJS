@@ -28,7 +28,7 @@
     instructions: {
       timingDifficulty: "The circle turns blue after the symbol appears, so it may sometimes be difficult to change your response in time.",
       signalIntro: `
-        <p>We will now add a new rule to the task.</p>
+        <p>We will now introduce an extra thing to look out for.</p>
         <p>On some trials, the circle around the symbol turns blue shortly after the symbol appears. These are change trials.</p>
         <p>On a change trial, use the two picture keys on the right side of the keyboard.</p>
       `,
