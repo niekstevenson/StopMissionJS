@@ -338,27 +338,36 @@
     return {
       type: jsPsychInstructions,
       pages: [
+        
         `
+          <h2>Enter Full Screen</h2>
+          <p>Before you continue, please enter full screen mode.</p>
+          <p>Please stay online and in full screen mode for the entire duration of the task.</p>
+          `,
+          `
           <h2>Welcome</h2>
+          <p>This task consists of several trials.</p>
           <p>On each trial, a symbol appears at the center of the screen.</p>
-          <p>Press the correct response key as soon as you know the answer.</p>
-          <p>Respond quickly, but do not guess before the symbol appears.</p>
+          <p>When you see the symbol, press the correct response key as fast as possible.</p>
+          <p>The next screen will show you the symbols and which response keys are correct for each.</p>
         `,
         `
-          <h2>Match the Symbol</h2>
-          <p>The two picture keys below are your response keys.</p>
-          <p>When a symbol appears, press the key with the matching picture.</p>
+          <h2>Correct Response Keys</h2>
+          <p>Below, you see the symbols and which symbol matches which key.</p>
+          <p>When a symbol appears, press the key with the matching symbol.</p>
           ${renderGoResponseExamples(task, keyMapping)}
         `,
         `
           <h2>Trial Timing</h2>
           <p>Each trial begins with a plus sign at the center of the screen.</p>
           <p>Keep your eyes there. The symbol will appear in the same place.</p>
+          <p>Respond quickly, but do not guess before the symbol appears.</p>
+          <p>Going fast sometimes means making mistakes, but that is OK. Going fast is better than if you are slow and always respond correctly.</p>
           ${renderTrialPreview()}
         `,
         `
-          <h2>Your Response Keys</h2>
-          <p>Keep your fingers resting on the two picture keys shown below.</p>
+          <h2>Finger Placement</h2>
+          <p>Please keep your middle finger and index finger resting on the two symbol keys shown below.</p>
           ${renderKeyboardGuide(task, keyMapping, task.orientationResponseKeys)}
         `
       ],
@@ -576,7 +585,7 @@
     if (mode === "go") {
       return makePracticeBlockIntro(
         "Practice 1",
-        "Press the key with the picture that matches the symbol on the screen."
+        "Press the key with the symbol that matches the symbol on the screen."
       );
     }
 
