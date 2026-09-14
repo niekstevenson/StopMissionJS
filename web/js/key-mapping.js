@@ -82,11 +82,11 @@
 
   function formatKeyLabel(event) {
     if (event.code === "ShiftLeft") {
-      return "Left Shift";
+      return "Left Shift ⇧";
     }
 
     if (event.code === "ShiftRight") {
-      return "Right Shift";
+      return "Right Shift ⇧";
     }
 
     if (event.key === " ") {
